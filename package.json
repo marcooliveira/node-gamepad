@@ -1,0 +1,15 @@
+{
+  "name": "node-gamepad",
+  "version": "0.0.0",
+  "description": "Gamepad HID handler for my old controller. Going to use it for my AR Drone 2.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "private": true,
+  "author": "Marco Oliveira <marcooliveira@me.com",
+  "license": "MIT",
+  "dependencies": {
+    "node-hid": "^0.3.1"
+  }
+}
