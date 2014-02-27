@@ -31,6 +31,7 @@ var Gamepad = function (hid) {
     stabRH = this._stabRH.stabilize.bind(this._stabRH);
     stabRV = this._stabRV.stabilize.bind(this._stabRV);
 
+    // TODO: move this to _parseData()
     hid.on('data', function (data) {
         var dir = data[5],
             padData = {
@@ -97,5 +98,9 @@ Gamepad.prototype._read = function (size) {
 };
 
 // -----------------------------------------------------------------------------
+
+Gamepad.prototype._parseData = function (data) {
+
+};
 
 module.exports = Gamepad;
