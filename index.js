@@ -7,52 +7,33 @@ var HID  = require('node-hid'),
 ;
 
 var Gamepad = function (hid) {
-    var stabLH,
-        stabLV,
-        stabRH,
-        stabRV
-    ;
-
     // Duplex.call(this);
     EventEmitter.call(this);
 
     // store hid
     this._hid = hid;
 
-    // left stick stabilizer
-    this._stabLH = new VS({ min: 0, max: 255 });
-    this._stabLV = new VS({ min: 0, max: 255 });
-    stabLH = this._stabLH.stabilize.bind(this._stabLH);
-    stabLV = this._stabLV.stabilize.bind(this._stabLV);
+    // prepare stabilizers used for reducing unstable analog values
+    this._prepareValueStabilizers();
 
-    // right stick stabilizer
-    this._stabRH = new VS({ min: 0, max: 255 });
-    this._stabRV = new VS({ min: 0, max: 255 });
-    stabRH = this._stabRH.stabilize.bind(this._stabRH);
-    stabRV = this._stabRV.stabilize.bind(this._stabRV);
+    this._lastData = this._parseData(
+        this._stabLH.stabilize.bind(this._stabLH),
+        this._stabLV.stabilize.bind(this._stabLV),
+        this._stabRH.stabilize.bind(this._stabRH),
+        this._stabRV.stabilize.bind(this._stabRV),
+        new Buffer([0x80, 0x80, 0x82, 0x80, 0x80, 0x0f, 0x00, 0x40])
+    );
 
-    // TODO: move this to _parseData()
-    hid.on('data', function (data) {
-        var dir = data[5],
-            padData = {
-            rawData: data,
-            leftStick: {
-                h: stabLH(data[0]),
-                v: stabLV(data[1])
-            },
-            rightStick: {
-                h: stabRH(data[3]),
-                v: stabRV(data[4])
-            },
-            directional: {
-                up:    (dir >= 0 && dir <= 1) || dir === 7,
-                right: dir >= 1 && dir <= 3,
-                down:  dir >= 3 && dir <= 5,
-                left:  dir >= 5 && dir <= 7
-            }
-        };
-        this.emit('data', padData);
-    }.bind(this));
+    // listen to data and pass the stabilizers.
+    // function is curried to reduce lookups, considering
+    // that the 'data' event happens very often
+    hid.on('data', this._handleData.bind(
+        this,
+        this._stabLH.stabilize.bind(this._stabLH),
+        this._stabLV.stabilize.bind(this._stabLV),
+        this._stabRH.stabilize.bind(this._stabRH),
+        this._stabRV.stabilize.bind(this._stabRV)
+    ));
 
     hid.on('error', function (err) {
         this.emit('error', err);
@@ -99,8 +80,105 @@ Gamepad.prototype._read = function (size) {
 
 // -----------------------------------------------------------------------------
 
-Gamepad.prototype._parseData = function (data) {
+Gamepad.prototype._prepareValueStabilizers = function () {
+    // left stick stabilizer
+    this._stabLH = new VS({ min: 0, max: 255 });
+    this._stabLV = new VS({ min: 0, max: 255 });
 
+    // right stick stabilizer
+    this._stabRH = new VS({ min: 0, max: 255 });
+    this._stabRV = new VS({ min: 0, max: 255 });
+};
+
+Gamepad.prototype._handleData = function (stabLH, stabLV, stabRH, stabRV, data) {
+    var oldData = this._lastData,
+        newData,
+        inputChanges;
+
+    // parse data and replace last data with new
+    this._lastData = newData = this._parseData.apply(this, arguments);
+
+    // check for changes in any of the inputs and dispatch respective events
+    inputChanges = this._checkDataChanges(oldData, newData);
+    this._emitInputChanges(inputChanges);
+
+    this.emit('data', newData);
+};
+
+Gamepad.prototype._checkDataChanges = function (oldData, newData) {
+    var changes = [],
+        k
+    ;
+
+    for (k in newData) {
+        switch (k) {
+        case 'rawData':
+            // TODO: continue here
+            continue;
+        case 'leftStick':
+            break;
+        case 'rightStick':
+            break;
+        case 'directional':
+            break;
+        default:
+            // if something changed, store new value
+            (oldData[k] !== newData[k]) && (changes.push(k + (newData[k] ? 'Press' : 'Release')));
+        }
+    }
+
+    return changes;
+};
+
+Gamepad.prototype._emitInputChanges = function (changes) {
+    var k;
+
+    for (k in changes) {
+        this.emit(changes[k]);
+        console.log('emitted', changes[k]);
+    }
+};
+
+Gamepad.prototype._parseData = function (stabLH, stabLV, stabRH, stabRV, data) {
+    // get directional and main buttons (square, circle, triangle and X)
+    var mainBtns = data[5],
+        // secondary buttons
+        secBtns = data[6],
+        padData
+    ;
+
+    padData = {
+        rawData: data,
+        leftStick: {
+            h:       stabLH(data[0]),
+            v:       stabLV(data[1]),
+            pressed: !!(secBtns & 0x40)
+        },
+        rightStick: {
+            h:       stabRH(data[3]),
+            v:       stabRV(data[4]),
+            pressed: !!(secBtns & 0x80)
+        },
+        directional: {
+            up:    (mainBtns >= 0 && mainBtns <= 1) || mainBtns === 7,
+            right: mainBtns >= 1 && mainBtns <= 3,
+            down:  mainBtns >= 3 && mainBtns <= 5,
+            left:  mainBtns >= 5 && mainBtns <= 7
+        },
+        triangle: !!(mainBtns & 0x10),
+        circle:   !!(mainBtns & 0x20),
+        cross:    !!(mainBtns & 0x40),
+        square:   !!(mainBtns & 0x80),
+        start:    !!(secBtns & 0x20),
+        select:   !!(secBtns & 0x10),
+        analog:   !(data[7] & 0x80),
+        l1:       !!(secBtns & 0x01),
+        r1:       !!(secBtns & 0x02),
+        l2:       !!(secBtns & 0x04),
+        r2:       !!(secBtns & 0x08)
+    };
+
+    return padData;
 };
 
 module.exports = Gamepad;

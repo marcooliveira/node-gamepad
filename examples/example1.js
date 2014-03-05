@@ -8,10 +8,19 @@ Gamepad.device(function (err, gamepad) {
         return console.error('Unable to get pad:', err);
     }
 
+    var prettyRaw = function (rawData) {
+        Array.prototype.reduce.call(rawData, function (prev, curr, index) {
+            var bin = curr.toString(2);
+            while (bin.length < 8) {
+                bin = 0 + bin;
+            }
+            console.log(index + ':', bin, '->', curr);
+        }, '');
+    };
+
     var dataHandler = function (data) {
-            Array.prototype.reduce.call(data.rawData, function (prev, curr, index) {
-                console.log(index + ':', curr, '->', curr.toString(2));
-            }, '');
+            prettyRaw(data.rawData);
+
             console.log('data:', data);
         },
         errorHandler = function (err) {
