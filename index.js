@@ -68,6 +68,10 @@ Gamepad.device = function (opt, callback) {
     callback(null, gamepad);
 };
 
+Gamepad.prototype.value = function (property) {
+    return this._lastData[property];
+};
+
 // -----------------------------------------------------------------------------
 
 Gamepad.prototype._write = function (chunk, encoding, callback) {
@@ -107,23 +111,70 @@ Gamepad.prototype._handleData = function (stabLH, stabLV, stabRH, stabRV, data) 
 
 Gamepad.prototype._checkDataChanges = function (oldData, newData) {
     var changes = [],
-        k
+        k,
+        newValue,
+        oldValue,
+        directionalChanged,
+        keyName,
+        i,
+        directionalKeys = ['up', 'right', 'left', 'down']
     ;
 
     for (k in newData) {
+        oldValue = oldData[k];
+        newValue = newData[k];
+
         switch (k) {
         case 'rawData':
-            // TODO: continue here
+            // ignore this property
             continue;
         case 'leftStick':
+            // check if direction changed
+            if (newValue.h !== oldValue.h || newValue.v !== oldValue.v) {
+                changes.push(['leftStickChange', {
+                    h: newValue.h,
+                    v: newValue.v
+                }]);
+            }
+
+            // check if press state changed
+            (oldValue.pressed !== newValue.pressed) && (changes.push(['leftStick' + (newValue ? 'Press' : 'Release')]));
             break;
         case 'rightStick':
+            // check if direction changed
+            if (newValue.h !== oldValue.h || newValue.v !== oldValue.v) {
+                changes.push(['rightStickChange', {
+                    h: newValue.h,
+                    v: newValue.v
+                }]);
+            }
+
+            // check if press state changed
+            (oldValue.pressed !== newValue.pressed) && (changes.push(['rightStick' + (newValue ? 'Press' : 'Release')]));
             break;
         case 'directional':
+            directionalChanged = false;
+
+            // check if direction changed
+            for (i in directionalKeys) {
+                keyName = directionalKeys[i];
+                // for each direction, if the press state changed
+                if (newValue[keyName] !== oldValue[keyName]) {
+                    // add that button change
+                    changes.push([keyName + (newValue[keyName] ? 'Press' : 'Release')]);
+                    directionalChanged = true;
+                }
+            }
+
+            // if any direction changed
+            (directionalChanged) && changes.push(['directionalChange', newValue]);
+            break;
+        case 'analog':
+            (oldValue !== newValue) && (changes.push(['analogChange', newValue]));
             break;
         default:
             // if something changed, store new value
-            (oldData[k] !== newData[k]) && (changes.push(k + (newData[k] ? 'Press' : 'Release')));
+            (oldValue !== newValue) && (changes.push([k + (newValue ? 'Press' : 'Release')]));
         }
     }
 
@@ -134,8 +185,7 @@ Gamepad.prototype._emitInputChanges = function (changes) {
     var k;
 
     for (k in changes) {
-        this.emit(changes[k]);
-        console.log('emitted', changes[k]);
+        this.emit.apply(this, changes[k]);
     }
 };
 
