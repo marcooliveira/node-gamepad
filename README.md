@@ -35,7 +35,7 @@ Gamepad.device(function (err, gamepad) {
 
 This will output something like this on every `data` event:
 
-```json
+```
 {
     rawData: <Buffer 80 80 82 80 80 0f 00 40>,
     leftStick: { h: 128, v: 128, pressed: false },
