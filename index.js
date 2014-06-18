@@ -54,7 +54,8 @@ Gamepad.device = function (opt, callback) {
 
     opt = opt || {};
 
-    opt.path = opt.path || 'USB_0079_0006_fd120000';
+    // opt.path = opt.path || 'USB_0079_0006_fd120000';
+    opt.path = opt.path || 'USB_0079_0006_14100000';
 
     // try to get the hid
     try {
